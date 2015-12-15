@@ -207,6 +207,8 @@
 		303111EE1C1EDAC7003C5E3F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				HEADER_SEARCH_PATHS = /usr/local/include;
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				PRODUCT_NAME = screenshot_capture;
 			};
 			name = Debug;
@@ -214,6 +216,8 @@
 		303111EF1C1EDAC7003C5E3F /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				HEADER_SEARCH_PATHS = /usr/local/include;
+				LIBRARY_SEARCH_PATHS = /usr/local/lib;
 				PRODUCT_NAME = screenshot_capture;
 			};
 			name = Release;
