@@ -157,6 +157,29 @@ int display_width(AVCodecContext *pCodecCtx)
     return pCodecCtx->height * display_aspect_ratio(pCodecCtx);
 }
 
+int64_t seek_data_from_file(void *opaque, int64_t offset, int whence)
+{
+    struct file_info *info = (struct file_info *) opaque;
+    if (whence == AVSEEK_SIZE) {
+        return info->size;
+    }
+    
+    if ((whence == SEEK_SET) || (whence == SEEK_CUR) || (whence == SEEK_END)) {
+        int result = fseek(info->file, offset, whence);
+        return result < 0 ? -1 : 0;
+    }
+    return -1;
+}
+
+
+int read_data_from_file(void *opaque, uint8_t *buf, int buf_len)
+{
+    struct file_info *info = (struct file_info *) opaque;
+    
+    ssize_t r = fread(buf, buf_len, 1, info->file);
+    return (r == -1) ? AVERROR(ERROR) : (int)r;
+}
+
 int setup_filters(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, int videoStream, AVFilterGraph **fg, AVFilterContext **buffersrc_ctx, AVFilterContext **buffersink_ctx)
 {
     AVFilterGraph   *filter_graph;
@@ -305,7 +328,7 @@ int setup_filters(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, int vi
 }
 
 static int
-get_thumb(const char* filename)
+get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
 {
     int              rc, ret, videoStream;
     AVFormatContext *pFormatCtx = NULL;
@@ -322,6 +345,7 @@ get_thumb(const char* filename)
     char             value[10];
     int              threads = 2;
     struct file_info info;
+    int              second = 0;
     
     // Open video file
     info.file = fopen(filename, "r");
@@ -342,8 +366,8 @@ get_thumb(const char* filename)
         goto exit;
     }
     
-    //pAVIOCtx = avio_alloc_context(bufferAVIO, BUFFER_SIZE, 0, &info, read_data_from_file, NULL, seek_data_from_file);
-    pAVIOCtx = avio_alloc_context(bufferAVIO, BUFFER_SIZE, 0, &info, NULL, NULL, NULL);
+    pAVIOCtx = avio_alloc_context(bufferAVIO, BUFFER_SIZE, 0, &info, read_data_from_file, NULL, seek_data_from_file);
+    //pAVIOCtx = avio_alloc_context(bufferAVIO, BUFFER_SIZE, 0, &info, NULL, NULL, NULL);
     if (pAVIOCtx == NULL) {
         printf("video thumb extractor module: Couldn't alloc AVIO context\n");
         goto exit;
@@ -404,7 +428,7 @@ get_thumb(const char* filename)
         goto exit;
     }
     
-    while ((rc = get_frame(cf, pFormatCtx, pCodecCtx, pFrame, videoStream, second)) == 0) {
+    while ((rc = get_frame(pFormatCtx, pCodecCtx, pFrame, videoStream, second)) == 0) {
         if (pFrame->pict_type == 0) { // AV_PICTURE_TYPE_NONE
             need_flush = 1;
             break;
@@ -489,6 +513,16 @@ int main(int argc, const char * argv[])
     init();
     
     printf("Path: %s\n", argv[1]);
+    
+    caddr_t* buffer = malloc(1024 * 1024 * 100);
+    size_t len;
+    
+    if (get_thumb(argv[1], buffer, &len) == OK)
+    {
+        FILE* f = fopen("/Users/elviss/Desktop/test.jpg", "wb");
+        fwrite(buffer, len, 1, f);
+        fclose(f);
+    }
     
     deinit();
     

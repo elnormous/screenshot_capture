@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		303111F31C1EDC16003C5E3F /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 303111F21C1EDC16003C5E3F /* main.c */; };
+		307304D41C218FF4004D5CAD /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 307304D31C218FF4004D5CAD /* CoreFoundation.framework */; };
+		307304D61C219143004D5CAD /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 307304D51C219143004D5CAD /* CoreVideo.framework */; };
+		307304D81C219154004D5CAD /* VideoDecodeAcceleration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 307304D71C219154004D5CAD /* VideoDecodeAcceleration.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -25,6 +28,9 @@
 /* Begin PBXFileReference section */
 		303111E61C1EDAC7003C5E3F /* screenshot_capture */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = screenshot_capture; sourceTree = BUILT_PRODUCTS_DIR; };
 		303111F21C1EDC16003C5E3F /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		307304D31C218FF4004D5CAD /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		307304D51C219143004D5CAD /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = System/Library/Frameworks/CoreVideo.framework; sourceTree = SDKROOT; };
+		307304D71C219154004D5CAD /* VideoDecodeAcceleration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VideoDecodeAcceleration.framework; path = System/Library/Frameworks/VideoDecodeAcceleration.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,6 +38,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				307304D81C219154004D5CAD /* VideoDecodeAcceleration.framework in Frameworks */,
+				307304D61C219143004D5CAD /* CoreVideo.framework in Frameworks */,
+				307304D41C218FF4004D5CAD /* CoreFoundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -41,6 +50,9 @@
 		303111DD1C1EDAC7003C5E3F = {
 			isa = PBXGroup;
 			children = (
+				307304D71C219154004D5CAD /* VideoDecodeAcceleration.framework */,
+				307304D51C219143004D5CAD /* CoreVideo.framework */,
+				307304D31C218FF4004D5CAD /* CoreFoundation.framework */,
 				303111F41C1EDC35003C5E3F /* src */,
 				303111E71C1EDAC7003C5E3F /* Products */,
 			);
@@ -215,6 +227,21 @@
 					/usr/local/lib,
 					/opt/local/lib,
 				);
+				OTHER_LDFLAGS = (
+					"-lavfilter",
+					"-lavutil",
+					"-ljpeg",
+					"-lswscale",
+					"-lavresample",
+					"-lavcodec",
+					"-lavformat",
+					"-lx264",
+					"-lz",
+					"-lfreetype",
+					"-lfdk-aac",
+					"-lbz2",
+					"-lfontconfig",
+				);
 				PRODUCT_NAME = screenshot_capture;
 			};
 			name = Debug;
@@ -229,6 +256,21 @@
 				LIBRARY_SEARCH_PATHS = (
 					/usr/local/lib,
 					/opt/local/lib,
+				);
+				OTHER_LDFLAGS = (
+					"-lavfilter",
+					"-lavutil",
+					"-ljpeg",
+					"-lswscale",
+					"-lavresample",
+					"-lavcodec",
+					"-lavformat",
+					"-lx264",
+					"-lz",
+					"-lfreetype",
+					"-lfdk-aac",
+					"-lbz2",
+					"-lfontconfig",
 				);
 				PRODUCT_NAME = screenshot_capture;
 			};
