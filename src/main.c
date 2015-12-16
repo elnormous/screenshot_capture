@@ -13,9 +13,6 @@
 #include <libavfilter/avfilter.h>
 #include <libavfilter/buffersink.h>
 #include <libavfilter/buffersrc.h>
-
-#include <jpeglib.h>
-
 #include <png.h>
 
 #include <sys/types.h>
@@ -113,13 +110,26 @@ png_compress(uint8_t *buffer, int linesize, int width, int height, caddr_t *out_
     row = (png_bytep) malloc(3 * width * sizeof(png_byte));
     
     // Write image data
+    
+    log_str("linesize: %d, width: %d, height: %d, uncompressed: %d", linesize, width, height, uncompressed_size);
+    
+    FILE* raw = fopen("/Users/elviss/Desktop/raw.txt", "wb");
+    fwrite(buffer, uncompressed_size, 1, raw);
+    fclose(raw);
+    
     int x, y;
-    for (y=0 ; y<height ; y++) {
-        for (x=0 ; x<width ; x++) {
-            row[x * 3] = buffer[y * width + x];
-            row[x * 3 + 1] = buffer[y * width + x];
-            row[x * 3 + 2] = buffer[y * width + x];
+    for (y = 0; y < height; y++) {
+        for (x = 0; x < width; x++) {
+            /*int p = x * 3 + y * frame->linesize[0];
+            char r = buffer[p];
+            char g = buffer[p+1];
+            char b = buffer[p+2];*/
+            
+            row[x * 3] = buffer[y * linesize + x];
+            row[x * 3 + 1] = buffer[y * linesize + x + 1];
+            row[x * 3 + 2] = buffer[y * linesize + x + 2];
         }
+        
         png_write_row(png_ptr, row);
     }
     
@@ -135,69 +145,6 @@ finalise:
     if (row != NULL) free(row);
     
     return code;
-}
-
-static uint32_t
-jpeg_compress(uint8_t * buffer, int linesize, int out_width, int out_height, caddr_t *out_buffer, size_t *out_len, size_t uncompressed_size)
-{
-    struct jpeg_compress_struct cinfo;
-    struct jpeg_error_mgr jerr;
-    JSAMPROW row_pointer[1];
-    unsigned char *outbuf;
-    unsigned long outsize;
-    
-    if ( !buffer ) return 1;
-    
-    cinfo.err = jpeg_std_error(&jerr);
-    jpeg_create_compress(&cinfo);
-    
-    FILE* f = fopen("/Users/elviss/Desktop/test2.jpg", "wb");
-    
-    jpeg_stdio_dest(&cinfo, f);
-    
-    //ngx_http_video_thumbextractor_jpeg_memory_dest(&cinfo, out_buffer, out_len, uncompressed_size);
-    
-    size_t sz = 1024*1024;
-    outbuf = malloc(sz);
-    outsize = sz;
-    //jpeg_mem_dest(&cinfo, &outbuf, &outsize);
-    
-    cinfo.image_width = out_width;
-    cinfo.image_height = out_height;
-    cinfo.input_components = 3;
-    cinfo.in_color_space = JCS_RGB;
-    
-    jpeg_set_defaults(&cinfo);
-    /* Important: Header info must be set AFTER jpeg_set_defaults() */
-    cinfo.write_JFIF_header = TRUE;
-    cinfo.JFIF_major_version = 1;
-    cinfo.JFIF_minor_version = 2;
-    cinfo.density_unit = 1; /* 0=unknown, 1=dpi, 2=dpcm */
-    cinfo.X_density = 72;
-    cinfo.Y_density = 72;
-    cinfo.write_Adobe_marker = TRUE;
-    
-    jpeg_set_quality(&cinfo, 75, 1);
-    cinfo.optimize_coding = 100;
-    cinfo.smoothing_factor = 0;
-    
-    //if ( jpeg_progressive_mode ) {
-        jpeg_simple_progression(&cinfo);
-    //}
-    
-    jpeg_start_compress(&cinfo, TRUE);
-    
-    while (cinfo.next_scanline < cinfo.image_height) {
-        row_pointer[0] = &buffer[cinfo.next_scanline * linesize];
-        (void)jpeg_write_scanlines(&cinfo, row_pointer,1);
-    }
-    
-    jpeg_finish_compress(&cinfo);
-    jpeg_destroy_compress(&cinfo);
-    
-    //fclose(f);
-    
-    return 0;
 }
 
 int filter_frame(AVFilterContext *buffersrc_ctx, AVFilterContext *buffersink_ctx, AVFrame *inFrame, AVFrame *outFrame)
@@ -582,11 +529,23 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
     
     
     if (rc == OK) {
-        // Convert the image from its native format to JPEG
+        
+        /*AVFrame* newFrame = av_frame_alloc();
+        int numBytes = avpicture_get_size(AV_PIX_FMT_RGB24, pFrame->width, pFrame->height);
+        uint8_t *buffer= malloc(numBytes);
+        
+        avpicture_fill((AVPicture *)newFrame, buffer, AV_PIX_FMT_RGB24, pFrame->width, pFrame->height);
+        
+        img_convert((AVPicture *)newFrame, AV_PIX_FMT_RGB24,
+                    (AVPicture*)pFrame, pCodecCtx->pix_fmt, pCodecCtx->width,
+                    pCodecCtx->height);*/
+        
         uncompressed_size = pFrame->width * pFrame->height * 3;
-        /*if (jpeg_compress(pFrame->data[0], pFrame->linesize[0], pFrame->width, pFrame->height, out_buffer, out_len, uncompressed_size) == 0) {
-            rc = OK;
-        }*/
+        
+        log_str("Colorspace: %d", pFrame->colorspace);
+        
+        //avpicture_layout();
+        
         if (png_compress(pFrame->data[0], pFrame->linesize[0], pFrame->width, pFrame->height, out_buffer, out_len, uncompressed_size) == 0) {
             rc = OK;
         }

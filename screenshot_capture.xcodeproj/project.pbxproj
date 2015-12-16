@@ -230,7 +230,6 @@
 				OTHER_LDFLAGS = (
 					"-lavfilter",
 					"-lavutil",
-					"-ljpeg",
 					"-lswscale",
 					"-lavresample",
 					"-lavcodec",
@@ -261,7 +260,6 @@
 				OTHER_LDFLAGS = (
 					"-lavfilter",
 					"-lavutil",
-					"-ljpeg",
 					"-lswscale",
 					"-lavresample",
 					"-lavcodec",
