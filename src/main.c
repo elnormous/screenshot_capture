@@ -16,8 +16,11 @@
 
 #include <jpeglib.h>
 
+#include <png.h>
+
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #define OK 0
@@ -26,11 +29,113 @@
 #define BUFFER_SIZE 1024 * 8
 #define MEMORY_STEP 1024
 
-struct file_info
+typedef struct {
+    int                              fd;
+    int64_t                          offset;
+} file_t;
+
+typedef struct {
+    int64_t                          size;
+    int64_t                          offset;
+    file_t                           file;
+} file_info;
+
+void log_str(const char * format, ... )
 {
-    FILE* file;
-    off_t size;
-};
+    va_list vl;
+    va_start(vl, format);
+    
+    vprintf(format, vl);
+    printf("\n");
+    
+    va_end(vl);
+}
+
+static uint32_t
+png_compress(uint8_t *buffer, int linesize, int width, int height, caddr_t *out_buffer, size_t *out_len, size_t uncompressed_size)
+{
+    int code = 0;
+    FILE *fp = NULL;
+    png_structp png_ptr = NULL;
+    png_infop info_ptr = NULL;
+    png_bytep row = NULL;
+    
+    const char *filename = "/Users/elviss/Desktop/test.png";
+    char *title = NULL;
+    
+    fp = fopen(filename, "wb");
+    if (fp == NULL) {
+        log_str("Could not open file %s for writing", filename);
+        code = 1;
+        goto finalise;
+    }
+    
+    png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (png_ptr == NULL) {
+        log_str("Could not allocate write struct");
+        code = 1;
+        goto finalise;
+    }
+    
+    // Initialize info structure
+    info_ptr = png_create_info_struct(png_ptr);
+    if (info_ptr == NULL) {
+        log_str("Could not allocate info struct");
+        code = 1;
+        goto finalise;
+    }
+    
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        fprintf(stderr, "Error during png creation\n");
+        code = 1;
+        goto finalise;
+    }
+    
+    png_init_io(png_ptr, fp);
+    
+    // Write header (8 bit colour depth)
+    png_set_IHDR(png_ptr, info_ptr, width, height,
+                 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+    
+    // Set title
+    if (title != NULL) {
+        png_text title_text;
+        title_text.compression = PNG_TEXT_COMPRESSION_NONE;
+        title_text.key = "Title";
+        title_text.text = title;
+        png_set_text(png_ptr, info_ptr, &title_text, 1);
+    }
+    
+    png_write_info(png_ptr, info_ptr);
+    
+    // Allocate memory for one row (3 bytes per pixel - RGB)
+    row = (png_bytep) malloc(3 * width * sizeof(png_byte));
+    
+    // Write image data
+    int x, y;
+    for (y=0 ; y<height ; y++) {
+        for (x=0 ; x<width ; x++) {
+            row[x * 3] = buffer[y * width + x];
+            row[x * 3 + 1] = buffer[y * width + x];
+            row[x * 3 + 2] = buffer[y * width + x];
+        }
+        png_write_row(png_ptr, row);
+    }
+    
+    // End write
+    png_write_end(png_ptr, NULL);
+    
+    png_write_info(png_ptr, info_ptr);
+    
+finalise:
+    if (fp != NULL) fclose(fp);
+    if (info_ptr != NULL) png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
+    if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
+    if (row != NULL) free(row);
+    
+    return code;
+}
 
 static uint32_t
 jpeg_compress(uint8_t * buffer, int linesize, int out_width, int out_height, caddr_t *out_buffer, size_t *out_len, size_t uncompressed_size)
@@ -45,12 +150,17 @@ jpeg_compress(uint8_t * buffer, int linesize, int out_width, int out_height, cad
     
     cinfo.err = jpeg_std_error(&jerr);
     jpeg_create_compress(&cinfo);
+    
+    FILE* f = fopen("/Users/elviss/Desktop/test2.jpg", "wb");
+    
+    jpeg_stdio_dest(&cinfo, f);
+    
     //ngx_http_video_thumbextractor_jpeg_memory_dest(&cinfo, out_buffer, out_len, uncompressed_size);
     
     size_t sz = 1024*1024;
     outbuf = malloc(sz);
     outsize = sz;
-    jpeg_mem_dest(&cinfo, &outbuf, &outsize);
+    //jpeg_mem_dest(&cinfo, &outbuf, &outsize);
     
     cinfo.image_width = out_width;
     cinfo.image_height = out_height;
@@ -85,6 +195,8 @@ jpeg_compress(uint8_t * buffer, int linesize, int out_width, int out_height, cad
     jpeg_finish_compress(&cinfo);
     jpeg_destroy_compress(&cinfo);
     
+    //fclose(f);
+    
     return 0;
 }
 
@@ -93,13 +205,13 @@ int filter_frame(AVFilterContext *buffersrc_ctx, AVFilterContext *buffersink_ctx
     int rc = OK;
     
     /*if (av_buffersrc_add_frame_flags(buffersrc_ctx, inFrame, AV_BUFFERSRC_FLAG_KEEP_REF) < 0) {
-        printf("video thumb extractor module: Error while feeding the filtergraph");
+        log_str("video thumb extractor module: Error while feeding the filtergraph");
         return ERROR;
     }*/
     
     if ((rc = av_buffersink_get_frame(buffersink_ctx, outFrame)) < 0) {
         if (rc != AVERROR(EAGAIN)) {
-            printf("video thumb extractor module: Error while getting the filtergraph result frame");
+            log_str("video thumb extractor module: Error while getting the filtergraph result frame");
         }
     }
     
@@ -121,7 +233,7 @@ int get_frame(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, AVFrame *p
     
     // seek first frame
     if (av_seek_frame(pFormatCtx, videoStream, second_on_stream_time_base, 0) < 0) {
-        printf("video thumb extractor module: Seek to an invalid time");
+        log_str("video thumb extractor module: Seek to an invalid time");
         return ERROR;
     }
     
@@ -159,25 +271,33 @@ int display_width(AVCodecContext *pCodecCtx)
 
 int64_t seek_data_from_file(void *opaque, int64_t offset, int whence)
 {
-    struct file_info *info = (struct file_info *) opaque;
+    file_info *info = (file_info *) opaque;
     if (whence == AVSEEK_SIZE) {
         return info->size;
     }
     
     if ((whence == SEEK_SET) || (whence == SEEK_CUR) || (whence == SEEK_END)) {
-        int result = fseek(info->file, offset, whence);
-        return result < 0 ? -1 : 0;
+        info->file.offset = lseek(info->file.fd, info->offset + offset, whence);
+        return info->file.offset < 0 ? -1 : 0;
     }
+    
     return -1;
 }
 
 
 int read_data_from_file(void *opaque, uint8_t *buf, int buf_len)
 {
-    struct file_info *info = (struct file_info *) opaque;
+    file_info *info = (file_info *) opaque;
     
-    ssize_t r = fread(buf, buf_len, 1, info->file);
-    return (r == -1) ? AVERROR(ERROR) : (int)r;
+    if ((info->offset > 0) && (info->file.offset < info->offset)) {
+        info->file.offset = lseek(info->file.fd, info->offset, SEEK_SET);
+        if (info->file.offset < 0) {
+            return AVERROR(errno);
+        }
+    }
+    
+    ssize_t r = pread(info->file.fd, buf, buf_len, info->file.offset);
+    return (r == ERROR) ? AVERROR(errno) : (int)r;
 }
 
 int setup_filters(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, int videoStream, AVFilterGraph **fg, AVFilterContext **buffersrc_ctx, AVFilterContext **buffersink_ctx)
@@ -235,7 +355,7 @@ int setup_filters(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, int vi
     
     // create filters to scale and crop the selected frame
     if ((*fg = filter_graph = avfilter_graph_alloc()) == NULL) {
-        printf("video thumb extractor module: unable to create filter graph: out of memory");
+        log_str("video thumb extractor module: unable to create filter graph: out of memory");
         return ERROR;
     }
     
@@ -247,47 +367,47 @@ int setup_filters(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, int vi
              pCodecCtx->sample_aspect_ratio.num, pCodecCtx->sample_aspect_ratio.den);
     
     if (avfilter_graph_create_filter(buffersrc_ctx, avfilter_get_by_name("buffer"), NULL, args, NULL, filter_graph) < 0) {
-        printf("video thumb extractor module: Cannot create buffer source");
+        log_str("video thumb extractor module: Cannot create buffer source");
         return ERROR;
     }
     
     if ((rotate90 || rotate180 || rotate270) && (avfilter_graph_create_filter(&transpose_ctx, avfilter_get_by_name("transpose"), NULL, rotate270 ? "2" : "1", NULL, filter_graph) < 0)) {
-        printf("video thumb extractor module: error initializing transpose filter");
+        log_str("video thumb extractor module: error initializing transpose filter");
         return ERROR;
     }
     
     if (rotate180 && (avfilter_graph_create_filter(&transpose_cw_ctx, avfilter_get_by_name("transpose"), NULL, "1", NULL, filter_graph) < 0)) {
-        printf("video thumb extractor module: error initializing transpose filter");
+        log_str("video thumb extractor module: error initializing transpose filter");
         return ERROR;
     }
     
     snprintf(args, sizeof(args), "%d:%d:flags=bicubic", scale_width, scale_height);
     if (avfilter_graph_create_filter(&scale_ctx, avfilter_get_by_name("scale"), NULL, args, NULL, filter_graph) < 0) {
-        printf("video thumb extractor module: error initializing scale filter");
+        log_str("video thumb extractor module: error initializing scale filter");
         return ERROR;
     }
     
     if (needs_crop) {
         snprintf(args, sizeof(args), "%d:%d", (int) width, (int) height);
         if (avfilter_graph_create_filter(&crop_ctx, avfilter_get_by_name("crop"), NULL, args, NULL, filter_graph) < 0) {
-            printf("video thumb extractor module: error initializing crop filter");
+            log_str("video thumb extractor module: error initializing crop filter");
             return ERROR;
         }
     }
     
     if (avfilter_graph_create_filter(&tile_ctx, avfilter_get_by_name("tile"), NULL, args, NULL, filter_graph) < 0) {
-        printf("video thumb extractor module: error initializing tile filter");
+        log_str("video thumb extractor module: error initializing tile filter");
         return ERROR;
     }
     
     if (avfilter_graph_create_filter(&format_ctx, avfilter_get_by_name("format"), NULL, "pix_fmts=rgb24", NULL, filter_graph) < 0) {
-        printf("video thumb extractor module: error initializing format filter");
+        log_str("video thumb extractor module: error initializing format filter");
         return ERROR;
     }
     
     /* buffer video sink: to terminate the filter chain. */
     if (avfilter_graph_create_filter(buffersink_ctx, avfilter_get_by_name("buffersink"), NULL, NULL, NULL, filter_graph) < 0) {
-        printf("video thumb extractor module: Cannot create buffer sink");
+        log_str("video thumb extractor module: Cannot create buffer sink");
         return ERROR;
     }
     
@@ -315,12 +435,12 @@ int setup_filters(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, int vi
     if (rc >= 0) rc = avfilter_link(format_ctx, 0, *buffersink_ctx, 0);
     
     if (rc < 0) {
-        printf("video thumb extractor module: error connecting filters");
+        log_str("video thumb extractor module: error connecting filters");
         return ERROR;
     }
     
     if (avfilter_graph_config(filter_graph, NULL) < 0) {
-        printf("video thumb extractor module: error configuring the filter graph");
+        log_str("video thumb extractor module: error configuring the filter graph");
         return ERROR;
     }
     
@@ -337,59 +457,68 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
     AVFrame         *pFrame = NULL;
     size_t           uncompressed_size;
     unsigned char   *bufferAVIO = NULL;
-    AVIOContext     *pAVIOCtx = NULL;
+    //AVIOContext     *pAVIOCtx = NULL;
     AVFilterContext *buffersink_ctx;
     AVFilterContext *buffersrc_ctx;
     AVFilterGraph   *filter_graph = NULL;
     int              need_flush = 0;
     char             value[10];
     int              threads = 2;
-    struct file_info info;
+    file_info       *info;
     int              second = 0;
     
+    rc = OK;
+    
+    info = malloc(sizeof(file_info));
+    memset(info, 0, sizeof(file_info));
+    
     // Open video file
-    info.file = fopen(filename, "r");
-    if (info.file == 0) {
-        printf("Failed to open file \"%s\"\n", filename);
+    info->file.fd = open(filename, O_RDONLY);
+    if (info->file.fd == -1) {
+        log_str("Failed to open file \"%s\"\n", filename);
         goto exit;
     }
     
     struct stat s;
-    fstat(fileno(info.file), &s);
+    fstat(info->file.fd, &s);
+    info->size = s.st_size;
     
-    info.size = s.st_size;
+    bufferAVIO = (unsigned char *)malloc(BUFFER_SIZE);
+    if (!bufferAVIO) {
+        log_str("video thumb extractor module: Couldn't alloc AVIO buffer\n");
+        goto exit;
+    }
     
     pFormatCtx = avformat_alloc_context();
-    bufferAVIO = (unsigned char *)malloc(BUFFER_SIZE);
-    if ((pFormatCtx == NULL) || (bufferAVIO == NULL)) {
-        printf("video thumb extractor module: Couldn't alloc AVIO buffer\n");
+    if (!pFormatCtx) {
+        log_str("video thumb extractor module: Couldn't alloc AVIO buffer\n");
         goto exit;
     }
     
-    pAVIOCtx = avio_alloc_context(bufferAVIO, BUFFER_SIZE, 0, &info, read_data_from_file, NULL, seek_data_from_file);
-    //pAVIOCtx = avio_alloc_context(bufferAVIO, BUFFER_SIZE, 0, &info, NULL, NULL, NULL);
+    /*pAVIOCtx = avio_alloc_context(bufferAVIO, BUFFER_SIZE, 0, &info, read_data_from_file, NULL, seek_data_from_file);
     if (pAVIOCtx == NULL) {
-        printf("video thumb extractor module: Couldn't alloc AVIO context\n");
+        log_str("video thumb extractor module: Couldn't alloc AVIO context\n");
         goto exit;
-    }
+    }*/
     
-    pFormatCtx->pb = pAVIOCtx;
+    //pFormatCtx->pb = pAVIOCtx;
+    pFormatCtx->flags |= AVFMT_FLAG_NONBLOCK;
     
     // Open video file
     if ((ret = avformat_open_input(&pFormatCtx, filename, NULL, NULL)) != 0) {
-        printf("video thumb extractor module: Couldn't open file %s, error: %d\n", filename, ret);
+        log_str("video thumb extractor module: Couldn't open file %s, error: %d\n", filename, ret);
         rc = ERROR;
         goto exit;
     }
     
     // Retrieve stream information
     if (avformat_find_stream_info(pFormatCtx, NULL) < 0) {
-        printf("video thumb extractor module: Couldn't find stream information\n");
+        log_str("video thumb extractor module: Couldn't find stream information\n");
         goto exit;
     }
     
     if ((pFormatCtx->duration > 0) && ((((float_t) pFormatCtx->duration / AV_TIME_BASE))) < 0.1) {
-        printf("video thumb extractor module: seconds greater than duration\n");
+        log_str("video thumb extractor module: seconds greater than duration\n");
         rc = ERROR;
         goto exit;
     }
@@ -397,7 +526,7 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
     // Find the first video stream
     videoStream = av_find_best_stream(pFormatCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &pCodec, 0);
     if (videoStream == -1) {
-        printf("video thumb extractor module: Didn't find a video stream\n");
+        log_str("video thumb extractor module: Didn't find a video stream\n");
         goto exit;
     }
     
@@ -410,21 +539,21 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
     
     // Open codec
     if ((avcodec_open2(pCodecCtx, pCodec, &dict)) < 0) {
-        printf("video thumb extractor module: Could not open codec\n");
+        log_str("video thumb extractor module: Could not open codec\n");
         goto exit;
     }
     
     //setup_parameters(cf, ctx, pFormatCtx, pCodecCtx);
     
-    if (setup_filters(pFormatCtx, pCodecCtx, videoStream, &filter_graph, &buffersrc_ctx, &buffersink_ctx) < 0) {
+    /*if (setup_filters(pFormatCtx, pCodecCtx, videoStream, &filter_graph, &buffersrc_ctx, &buffersink_ctx) < 0) {
         goto exit;
-    }
+    }*/
     
     // Allocate video frame
     pFrame = av_frame_alloc();
     
     if (pFrame == NULL) {
-        printf("video thumb extractor module: Could not alloc frame memory\n");
+        log_str("video thumb extractor module: Could not alloc frame memory\n");
         goto exit;
     }
     
@@ -434,38 +563,43 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
             break;
         }
         
-        if (filter_frame(buffersrc_ctx, buffersink_ctx, pFrame, pFrame) == AVERROR(EAGAIN)) {
+        /*if (filter_frame(buffersrc_ctx, buffersink_ctx, pFrame, pFrame) == AVERROR(EAGAIN)) {
             need_flush = 1;
             continue;
-        }
+        }*/
         
         need_flush = 0;
         break;
     }
     
-    if (need_flush) {
+    /*if (need_flush) {
         if (filter_frame(buffersrc_ctx, buffersink_ctx, NULL, pFrame) < 0) {
             goto exit;
         }
         
         rc = OK;
-    }
+    }*/
     
     
     if (rc == OK) {
         // Convert the image from its native format to JPEG
         uncompressed_size = pFrame->width * pFrame->height * 3;
-        if (jpeg_compress(pFrame->data[0], pFrame->linesize[0], pFrame->width, pFrame->height, out_buffer, out_len, uncompressed_size) == 0) {
+        /*if (jpeg_compress(pFrame->data[0], pFrame->linesize[0], pFrame->width, pFrame->height, out_buffer, out_len, uncompressed_size) == 0) {
+            rc = OK;
+        }*/
+        if (png_compress(pFrame->data[0], pFrame->linesize[0], pFrame->width, pFrame->height, out_buffer, out_len, uncompressed_size) == 0) {
             rc = OK;
         }
     }
     
 exit:
     
-    if ((info.file == NULL) && (fclose(info.file) != 0)) {
-        printf("video thumb extractor module: Couldn't close file %s", filename);
+    if ((info->file.fd == -1) && (close(info->file.fd) != 0)) {
+        log_str("video thumb extractor module: Couldn't close file %s", filename);
         rc = ERROR;
     }
+    
+    free(info);
     
     /* destroy unneeded objects */
     
@@ -479,10 +613,10 @@ exit:
     if (pFormatCtx != NULL) avformat_close_input(&pFormatCtx);
     
     // Free AVIO context
-    if (pAVIOCtx != NULL) {
+    /*if (pAVIOCtx != NULL) {
         if (pAVIOCtx->buffer != NULL) av_freep(&pAVIOCtx->buffer);
         av_freep(&pAVIOCtx);
-    }
+    }*/
     
     if (filter_graph != NULL) avfilter_graph_free(&filter_graph);
     
@@ -506,13 +640,13 @@ int main(int argc, const char * argv[])
 {
     if (argc < 2)
     {
-        printf("Too few arguments\n");
+        log_str("Too few arguments\n");
         return 1;
     }
     
     init();
     
-    printf("Path: %s\n", argv[1]);
+    log_str("Path: %s", argv[1]);
     
     caddr_t* buffer = malloc(1024 * 1024 * 100);
     size_t len;

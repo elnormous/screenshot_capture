@@ -241,6 +241,7 @@
 					"-lfdk-aac",
 					"-lbz2",
 					"-lfontconfig",
+					"-lpng",
 				);
 				PRODUCT_NAME = screenshot_capture;
 			};
@@ -271,6 +272,7 @@
 					"-lfdk-aac",
 					"-lbz2",
 					"-lfontconfig",
+					"-lpng",
 				);
 				PRODUCT_NAME = screenshot_capture;
 			};
