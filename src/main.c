@@ -296,7 +296,7 @@ int setup_filters(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, int vi
 }
 
 static int
-get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
+get_thumb(const char* filename, const char* out_name)
 {
     int              rc, ret, videoStream;
     AVFormatContext *pFormatCtx = NULL;
@@ -314,8 +314,9 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
     int              threads = 2;
     file_info       *info;
     int              second = 0;
-    AVCodecContext  *pOCodecCtx;
-    AVCodec         *pOCodec;
+    AVCodecContext  *pOCodecCtx = NULL;
+    AVCodec         *pOCodec = NULL;
+    AVPacket        *packet = NULL;
     
     rc = ERROR;
     
@@ -506,7 +507,7 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
     pOCodecCtx->time_base.num = pCodecCtx->time_base.num;
     pOCodecCtx->time_base.den = pCodecCtx->time_base.den;
     
-    AVPacket* packet = av_packet_alloc();
+    packet = av_packet_alloc();
     
     int got_packet;
     
@@ -518,17 +519,21 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
         goto exit;
     }
     
-    FILE* f = fopen("/Users/elviss/Desktop/tt.png", "wb");
+    FILE* f = fopen(out_name, "wb");
     fwrite(packet->data, packet->size, 1, f);
     fclose(f);
     
     rc = OK;
     
 exit:
-    
     if (packet)
     {
         av_packet_free(&packet);
+    }
+    
+    if (pOCodecCtx)
+    {
+        avcodec_free_context(&pOCodecCtx);
     }
     
     if ((info->file.fd == -1) && (close(info->file.fd) != 0)) {
@@ -585,10 +590,7 @@ int main(int argc, const char * argv[])
     
     log_str("Path: %s", argv[1]);
     
-    caddr_t* buffer = malloc(1024 * 1024 * 100);
-    size_t len;
-    
-    if (get_thumb(argv[1], buffer, &len) != OK)
+    if (get_thumb(argv[1], "/Users/elviss/Desktop/tt.png") != OK)
     {
         return 1;
     }
