@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS=-I.
 OBJ=screenshot_capture.o 
 
-LIBS=-lavfilter -lavutil -lswscale -lavresample -lavcodec -lavformat -lx264 -lz -lfreetype -lfdk-aac -lbz2 -lfontconfig -lpng
+LIBS=-lavfilter -lavutil -lswscale -lavresample -lavcodec -lavformat -lx264 -lz -lfreetype -lfdk-aac -lbz2 -lfontconfig -lpng -lpthread
 
 UNAME_S := $(shell uname -s)
 
