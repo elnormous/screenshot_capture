@@ -1,4 +1,5 @@
 CC=gcc
+LD=gcc
 CFLAGS=-I.
 OBJ=screenshot_capture.o 
 
@@ -18,7 +19,7 @@ endif
 	$(CC) -c $< $(CFLAGS) -o $@
 
 screenshot_capture: $(OBJ)
-	$(CC) $^ $(CFLAGS) $(LIBS) $(EXTRALIBS) -o $@
+	$(LD) $^ $(CFLAGS) $(LIBS) $(EXTRALIBS) -o $@
 
 .PHONY: clean
 
