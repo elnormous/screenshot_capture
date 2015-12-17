@@ -68,12 +68,6 @@ int get_frame(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, AVFrame *p
         return ERROR;
     }
     
-    // seek first frame
-    if (av_seek_frame(pFormatCtx, videoStream, second_on_stream_time_base, 0) < 0) {
-        log_str("video thumb extractor module: Seek to an invalid time");
-        return ERROR;
-    }
-    
     rc = ERROR;
     // Find the nearest frame
     while (!frameFinished && av_read_frame(pFormatCtx, &packet) >= 0) {
