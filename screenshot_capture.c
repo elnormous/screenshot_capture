@@ -495,7 +495,7 @@ int main(int argc, const char * argv[])
 {
     if (argc < 3)
     {
-        log_str("Too few arguments\n");
+        log_str("Too few arguments");
         return 1;
     }
     

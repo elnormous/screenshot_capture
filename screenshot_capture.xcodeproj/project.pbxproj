@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		303111F31C1EDC16003C5E3F /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 303111F21C1EDC16003C5E3F /* main.c */; };
+		304A8DFF1C23513D008B1151 /* screenshot_capture.c in Sources */ = {isa = PBXBuildFile; fileRef = 304A8DFE1C23513D008B1151 /* screenshot_capture.c */; };
 		307304D41C218FF4004D5CAD /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 307304D31C218FF4004D5CAD /* CoreFoundation.framework */; };
 		307304D61C219143004D5CAD /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 307304D51C219143004D5CAD /* CoreVideo.framework */; };
 		307304D81C219154004D5CAD /* VideoDecodeAcceleration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 307304D71C219154004D5CAD /* VideoDecodeAcceleration.framework */; };
@@ -27,7 +27,7 @@
 
 /* Begin PBXFileReference section */
 		303111E61C1EDAC7003C5E3F /* screenshot_capture */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = screenshot_capture; sourceTree = BUILT_PRODUCTS_DIR; };
-		303111F21C1EDC16003C5E3F /* main.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		304A8DFE1C23513D008B1151 /* screenshot_capture.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = screenshot_capture.c; sourceTree = "<group>"; };
 		307304D31C218FF4004D5CAD /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
 		307304D51C219143004D5CAD /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = System/Library/Frameworks/CoreVideo.framework; sourceTree = SDKROOT; };
 		307304D71C219154004D5CAD /* VideoDecodeAcceleration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VideoDecodeAcceleration.framework; path = System/Library/Frameworks/VideoDecodeAcceleration.framework; sourceTree = SDKROOT; };
@@ -50,10 +50,8 @@
 		303111DD1C1EDAC7003C5E3F = {
 			isa = PBXGroup;
 			children = (
-				307304D71C219154004D5CAD /* VideoDecodeAcceleration.framework */,
-				307304D51C219143004D5CAD /* CoreVideo.framework */,
-				307304D31C218FF4004D5CAD /* CoreFoundation.framework */,
-				303111F41C1EDC35003C5E3F /* src */,
+				304A8DFE1C23513D008B1151 /* screenshot_capture.c */,
+				304A8E001C23513F008B1151 /* Frameworks */,
 				303111E71C1EDAC7003C5E3F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,12 +64,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		303111F41C1EDC35003C5E3F /* src */ = {
+		304A8E001C23513F008B1151 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				303111F21C1EDC16003C5E3F /* main.c */,
+				307304D71C219154004D5CAD /* VideoDecodeAcceleration.framework */,
+				307304D51C219143004D5CAD /* CoreVideo.framework */,
+				307304D31C218FF4004D5CAD /* CoreFoundation.framework */,
 			);
-			path = src;
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -130,7 +130,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				303111F31C1EDC16003C5E3F /* main.c in Sources */,
+				304A8DFF1C23513D008B1151 /* screenshot_capture.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
