@@ -7,6 +7,7 @@ LIBS=-lavfilter -lavutil -lswscale -lavresample -lavcodec -lavformat -lx264 -lz 
 UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S),Linux)
+    EXTRALIBS=-lm
 endif
 
 ifeq ($(UNAME_S),Darwin)
