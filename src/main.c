@@ -13,7 +13,7 @@
 #include <libavfilter/avfilter.h>
 #include <libavfilter/buffersink.h>
 #include <libavfilter/buffersrc.h>
-#include <png.h>
+#include <libavcodec/avcodec.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -46,105 +46,6 @@ void log_str(const char * format, ... )
     printf("\n");
     
     va_end(vl);
-}
-
-static uint32_t
-png_compress(uint8_t *buffer, int linesize, int width, int height, caddr_t *out_buffer, size_t *out_len, size_t uncompressed_size)
-{
-    int code = 0;
-    FILE *fp = NULL;
-    png_structp png_ptr = NULL;
-    png_infop info_ptr = NULL;
-    png_bytep row = NULL;
-    
-    const char *filename = "/Users/elviss/Desktop/test.png";
-    char *title = NULL;
-    
-    fp = fopen(filename, "wb");
-    if (fp == NULL) {
-        log_str("Could not open file %s for writing", filename);
-        code = 1;
-        goto finalise;
-    }
-    
-    png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    if (png_ptr == NULL) {
-        log_str("Could not allocate write struct");
-        code = 1;
-        goto finalise;
-    }
-    
-    // Initialize info structure
-    info_ptr = png_create_info_struct(png_ptr);
-    if (info_ptr == NULL) {
-        log_str("Could not allocate info struct");
-        code = 1;
-        goto finalise;
-    }
-    
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        fprintf(stderr, "Error during png creation\n");
-        code = 1;
-        goto finalise;
-    }
-    
-    png_init_io(png_ptr, fp);
-    
-    // Write header (8 bit colour depth)
-    png_set_IHDR(png_ptr, info_ptr, width, height,
-                 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
-                 PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
-    
-    // Set title
-    if (title != NULL) {
-        png_text title_text;
-        title_text.compression = PNG_TEXT_COMPRESSION_NONE;
-        title_text.key = "Title";
-        title_text.text = title;
-        png_set_text(png_ptr, info_ptr, &title_text, 1);
-    }
-    
-    png_write_info(png_ptr, info_ptr);
-    
-    // Allocate memory for one row (3 bytes per pixel - RGB)
-    row = (png_bytep) malloc(3 * width * sizeof(png_byte));
-    
-    // Write image data
-    
-    log_str("linesize: %d, width: %d, height: %d, uncompressed: %d", linesize, width, height, uncompressed_size);
-    
-    FILE* raw = fopen("/Users/elviss/Desktop/raw.txt", "wb");
-    fwrite(buffer, uncompressed_size, 1, raw);
-    fclose(raw);
-    
-    int x, y;
-    for (y = 0; y < height; y++) {
-        for (x = 0; x < width; x++) {
-            /*int p = x * 3 + y * frame->linesize[0];
-            char r = buffer[p];
-            char g = buffer[p+1];
-            char b = buffer[p+2];*/
-            
-            row[x * 3] = buffer[y * linesize + x];
-            row[x * 3 + 1] = buffer[y * linesize + x + 1];
-            row[x * 3 + 2] = buffer[y * linesize + x + 2];
-        }
-        
-        png_write_row(png_ptr, row);
-    }
-    
-    // End write
-    png_write_end(png_ptr, NULL);
-    
-    png_write_info(png_ptr, info_ptr);
-    
-finalise:
-    if (fp != NULL) fclose(fp);
-    if (info_ptr != NULL) png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
-    if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
-    if (row != NULL) free(row);
-    
-    return code;
 }
 
 int filter_frame(AVFilterContext *buffersrc_ctx, AVFilterContext *buffersink_ctx, AVFrame *inFrame, AVFrame *outFrame)
@@ -199,7 +100,7 @@ int get_frame(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, AVFrame *p
         // Free the packet that was allocated by av_read_frame
         av_free_packet(&packet);
     }
-    av_free_packet(&packet);
+    //av_free_packet(&packet);
     
     return rc;
 }
@@ -413,8 +314,10 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
     int              threads = 2;
     file_info       *info;
     int              second = 0;
+    AVCodecContext  *pOCodecCtx;
+    AVCodec         *pOCodec;
     
-    rc = OK;
+    rc = ERROR;
     
     info = malloc(sizeof(file_info));
     memset(info, 0, sizeof(file_info));
@@ -454,7 +357,6 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
     // Open video file
     if ((ret = avformat_open_input(&pFormatCtx, filename, NULL, NULL)) != 0) {
         log_str("video thumb extractor module: Couldn't open file %s, error: %d\n", filename, ret);
-        rc = ERROR;
         goto exit;
     }
     
@@ -505,6 +407,7 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
     }
     
     while ((rc = get_frame(pFormatCtx, pCodecCtx, pFrame, videoStream, second)) == 0) {
+        
         if (pFrame->pict_type == 0) { // AV_PICTURE_TYPE_NONE
             need_flush = 1;
             break;
@@ -519,6 +422,11 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
         break;
     }
     
+    if (pFrame == NULL || rc != OK) {
+        log_str("Failed to get frame\n");
+        goto exit;
+    }
+    
     /*if (need_flush) {
         if (filter_frame(buffersrc_ctx, buffersink_ctx, NULL, pFrame) < 0) {
             goto exit;
@@ -527,31 +435,101 @@ get_thumb(const char* filename, caddr_t *out_buffer, size_t *out_len)
         rc = OK;
     }*/
     
+        
+    /*AVFrame* newFrame = av_frame_alloc();
+    int numBytes = avpicture_get_size(AV_PIX_FMT_RGB24, pFrame->width, pFrame->height);
+    uint8_t *buffer= malloc(numBytes);
     
-    if (rc == OK) {
-        
-        /*AVFrame* newFrame = av_frame_alloc();
-        int numBytes = avpicture_get_size(AV_PIX_FMT_RGB24, pFrame->width, pFrame->height);
-        uint8_t *buffer= malloc(numBytes);
-        
-        avpicture_fill((AVPicture *)newFrame, buffer, AV_PIX_FMT_RGB24, pFrame->width, pFrame->height);
-        
-        img_convert((AVPicture *)newFrame, AV_PIX_FMT_RGB24,
-                    (AVPicture*)pFrame, pCodecCtx->pix_fmt, pCodecCtx->width,
-                    pCodecCtx->height);*/
-        
-        uncompressed_size = pFrame->width * pFrame->height * 3;
-        
-        log_str("Colorspace: %d", pFrame->colorspace);
-        
-        //avpicture_layout();
-        
-        if (png_compress(pFrame->data[0], pFrame->linesize[0], pFrame->width, pFrame->height, out_buffer, out_len, uncompressed_size) == 0) {
-            rc = OK;
-        }
+    avpicture_fill((AVPicture *)newFrame, buffer, AV_PIX_FMT_RGB24, pFrame->width, pFrame->height);
+    
+    img_convert((AVPicture *)newFrame, AV_PIX_FMT_RGB24,
+                (AVPicture*)pFrame, pCodecCtx->pix_fmt, pCodecCtx->width,
+                pCodecCtx->height);*/
+    
+    uncompressed_size = pFrame->width * pFrame->height * 3;
+    
+    //char *newBuffer = malloc(uncompressed_size);
+    //av_image_copy_to_buffer(newBuffer, uncompressed_size, pFrame->data, pFrame->linesize, AV_PIX_FMT_RGB24, pFrame->width, pFrame->height);
+    
+    log_str("Pixel format: %d, %d", pCodecCtx->pix_fmt, AV_PIX_FMT_YUV420P);
+    log_str("Colorspace: %d", pFrame->colorspace);
+    
+    struct SwsContext *scalerCtx;
+    
+    scalerCtx = sws_getContext(pCodecCtx->width,
+                               pCodecCtx->height,
+                               pCodecCtx->pix_fmt,
+                               pCodecCtx->width,
+                               pCodecCtx->height,
+                               AV_PIX_FMT_RGB24,
+                               SWS_BILINEAR, //SWS_BICUBIC
+                               NULL, NULL, NULL);
+    if (!scalerCtx) {
+        printf("sws_getContext() failed\n");
+        goto exit;
     }
     
+    AVFrame *pFrameRGB = av_frame_alloc();
+    
+    if (pFrameRGB == NULL)
+    {
+        printf("Failed to alloc frame\n");
+        goto exit;
+    }
+    
+    avpicture_alloc((AVPicture *)pFrameRGB, AV_PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height);
+    
+    sws_scale(scalerCtx, pFrame->data, pFrame->linesize, 0, pFrame->height, pFrameRGB->data, pFrameRGB->linesize);
+    
+    pOCodec = avcodec_find_encoder (AV_CODEC_ID_PNG);
+    
+    if (!pOCodec)
+    {
+        log_str("Could not find png encode");
+        goto exit;
+    }
+    
+    pOCodecCtx = avcodec_alloc_context3(pOCodec);
+    
+    if (!pOCodecCtx) {
+        log_str("Failed to create codec context");
+        goto exit;
+    }
+    
+    pOCodecCtx->bit_rate      = pCodecCtx->bit_rate;
+    pOCodecCtx->width         = pCodecCtx->width;
+    pOCodecCtx->height        = pCodecCtx->height;
+    //pOCodecCtx->pix_fmt       = pCodecCtx->pix_fmt;
+    pOCodecCtx->pix_fmt       = AV_PIX_FMT_RGB24;
+    //pOCodecCtx->codec_id      = AV_CODEC_ID_PNG;
+    //pOCodecCtx->codec_type    = AVMEDIA_TYPE_VIDEO;
+    pOCodecCtx->time_base.num = pCodecCtx->time_base.num;
+    pOCodecCtx->time_base.den = pCodecCtx->time_base.den;
+    
+    AVPacket* packet = av_packet_alloc();
+    
+    int got_packet;
+    
+    avcodec_encode_video2(pOCodecCtx, packet, pFrameRGB, &got_packet);
+    
+    if (!got_packet)
+    {
+        log_str("Didn't get packet");
+        goto exit;
+    }
+    
+    FILE* f = fopen("/Users/elviss/Desktop/tt.png", "wb");
+    fwrite(packet->data, packet->size, 1, f);
+    fclose(f);
+    
+    rc = OK;
+    
 exit:
+    
+    if (packet)
+    {
+        av_packet_free(&packet);
+    }
     
     if ((info->file.fd == -1) && (close(info->file.fd) != 0)) {
         log_str("video thumb extractor module: Couldn't close file %s", filename);
@@ -610,11 +588,9 @@ int main(int argc, const char * argv[])
     caddr_t* buffer = malloc(1024 * 1024 * 100);
     size_t len;
     
-    if (get_thumb(argv[1], buffer, &len) == OK)
+    if (get_thumb(argv[1], buffer, &len) != OK)
     {
-        FILE* f = fopen("/Users/elviss/Desktop/test.jpg", "wb");
-        fwrite(buffer, len, 1, f);
-        fclose(f);
+        return 1;
     }
     
     deinit();
