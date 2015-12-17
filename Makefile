@@ -15,10 +15,10 @@ ifeq ($(UNAME_S),Darwin)
 endif
 
 %.o: %.c
-	$(CC) -c -o $@ $< $(CFLAGS)
+	$(CC) -c $< $(CFLAGS) -o $@
 
 screenshot_capture: $(OBJ)
-	gcc -o $@ $^ $(CFLAGS) $(LIBS) $(EXTRALIBS)
+	$(CC) $^ $(CFLAGS) $(LIBS) $(EXTRALIBS) -o $@
 
 .PHONY: clean
 
