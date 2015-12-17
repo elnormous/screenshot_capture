@@ -62,8 +62,6 @@ int get_frame(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, AVFrame *p
     int      frameFinished = 0;
     int      rc;
     
-    int64_t second_on_stream_time_base = second * pFormatCtx->streams[videoStream]->time_base.den / pFormatCtx->streams[videoStream]->time_base.num;
-    
     if ((pFormatCtx->duration > 0) && ((((float_t) pFormatCtx->duration / AV_TIME_BASE) - second)) < 0.1) {
         return ERROR;
     }
@@ -81,9 +79,8 @@ int get_frame(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, AVFrame *p
             }
         }
         // Free the packet that was allocated by av_read_frame
-        av_free_packet(&packet);
+        av_packet_unref(&packet);
     }
-    //av_free_packet(&packet);
     
     return rc;
 }
@@ -268,6 +265,7 @@ get_thumb(const char* filename, const char* out_name)
     AVCodecContext  *pOCodecCtx = NULL;
     AVCodec         *pOCodec = NULL;
     AVPacket        *packet = NULL;
+    AVFrame         *pFrameRGB = NULL;
     
     rc = ERROR;
     
@@ -401,7 +399,7 @@ get_thumb(const char* filename, const char* out_name)
         goto exit;
     }
     
-    AVFrame *pFrameRGB = av_frame_alloc();
+    pFrameRGB = av_frame_alloc();
     
     if (pFrameRGB == NULL)
     {
@@ -467,7 +465,7 @@ exit:
         avcodec_free_context(&pOCodecCtx);
     }
     
-    /* destroy unneeded objects */
+    if (pFrameRGB) av_frame_free(&pFrameRGB);
     
     // Free the YUV frame
     if (pFrame) av_frame_free(&pFrame);
@@ -493,14 +491,9 @@ void init()
     av_log_set_level(AV_LOG_ERROR);
 }
 
-void deinit()
-{
-    
-}
-
 int main(int argc, const char * argv[])
 {
-    if (argc < 2)
+    if (argc < 3)
     {
         log_str("Too few arguments\n");
         return 1;
@@ -510,12 +503,10 @@ int main(int argc, const char * argv[])
     
     log_str("Path: %s", argv[1]);
     
-    if (get_thumb(argv[1], "/Users/elviss/Desktop/tt.png") != OK)
+    if (get_thumb(argv[1], argv[2]) != OK)
     {
         return 1;
     }
-    
-    deinit();
     
     return 0;
 }
