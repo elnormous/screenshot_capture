@@ -26,17 +26,6 @@
 #define BUFFER_SIZE 1024 * 8
 #define MEMORY_STEP 1024
 
-typedef struct {
-    int                              fd;
-    int64_t                          offset;
-} file_t;
-
-typedef struct {
-    int64_t                          size;
-    int64_t                          offset;
-    file_t                           file;
-} file_info;
-
 void log_str(const char * format, ... )
 {
     va_list vl;
@@ -115,37 +104,6 @@ float display_aspect_ratio(AVCodecContext *pCodecCtx)
 int display_width(AVCodecContext *pCodecCtx)
 {
     return pCodecCtx->height * display_aspect_ratio(pCodecCtx);
-}
-
-int64_t seek_data_from_file(void *opaque, int64_t offset, int whence)
-{
-    file_info *info = (file_info *) opaque;
-    if (whence == AVSEEK_SIZE) {
-        return info->size;
-    }
-    
-    if ((whence == SEEK_SET) || (whence == SEEK_CUR) || (whence == SEEK_END)) {
-        info->file.offset = lseek(info->file.fd, info->offset + offset, whence);
-        return info->file.offset < 0 ? -1 : 0;
-    }
-    
-    return -1;
-}
-
-
-int read_data_from_file(void *opaque, uint8_t *buf, int buf_len)
-{
-    file_info *info = (file_info *) opaque;
-    
-    if ((info->offset > 0) && (info->file.offset < info->offset)) {
-        info->file.offset = lseek(info->file.fd, info->offset, SEEK_SET);
-        if (info->file.offset < 0) {
-            return AVERROR(errno);
-        }
-    }
-    
-    ssize_t r = pread(info->file.fd, buf, buf_len, info->file.offset);
-    return (r == ERROR) ? AVERROR(errno) : (int)r;
 }
 
 int setup_filters(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, int videoStream, AVFilterGraph **fg, AVFilterContext **buffersrc_ctx, AVFilterContext **buffersink_ctx)
@@ -312,27 +270,12 @@ get_thumb(const char* filename, const char* out_name)
     int              need_flush = 0;
     char             value[10];
     int              threads = 2;
-    file_info       *info;
     int              second = 0;
     AVCodecContext  *pOCodecCtx = NULL;
     AVCodec         *pOCodec = NULL;
     AVPacket        *packet = NULL;
     
     rc = ERROR;
-    
-    info = malloc(sizeof(file_info));
-    memset(info, 0, sizeof(file_info));
-    
-    // Open video file
-    info->file.fd = open(filename, O_RDONLY);
-    if (info->file.fd == -1) {
-        log_str("Failed to open file \"%s\"\n", filename);
-        goto exit;
-    }
-    
-    struct stat s;
-    fstat(info->file.fd, &s);
-    info->size = s.st_size;
     
     bufferAVIO = (unsigned char *)malloc(BUFFER_SIZE);
     if (!bufferAVIO) {
@@ -345,12 +288,6 @@ get_thumb(const char* filename, const char* out_name)
         log_str("video thumb extractor module: Couldn't alloc AVIO buffer\n");
         goto exit;
     }
-    
-    /*pAVIOCtx = avio_alloc_context(bufferAVIO, BUFFER_SIZE, 0, &info, read_data_from_file, NULL, seek_data_from_file);
-    if (pAVIOCtx == NULL) {
-        log_str("video thumb extractor module: Couldn't alloc AVIO context\n");
-        goto exit;
-    }*/
     
     //pFormatCtx->pb = pAVIOCtx;
     pFormatCtx->flags |= AVFMT_FLAG_NONBLOCK;
@@ -536,31 +473,20 @@ exit:
         avcodec_free_context(&pOCodecCtx);
     }
     
-    if ((info->file.fd == -1) && (close(info->file.fd) != 0)) {
-        log_str("video thumb extractor module: Couldn't close file %s", filename);
-        rc = ERROR;
-    }
-    
-    free(info);
-    
     /* destroy unneeded objects */
     
     // Free the YUV frame
-    if (pFrame != NULL) av_frame_free(&pFrame);
+    if (pFrame) av_frame_free(&pFrame);
+    
+    if (scalerCtx) sws_freeContext(scalerCtx);
     
     // Close the codec
-    if (pCodecCtx != NULL) avcodec_close(pCodecCtx);
+    if (pCodecCtx) avcodec_close(pCodecCtx);
     
     // Close the video file
-    if (pFormatCtx != NULL) avformat_close_input(&pFormatCtx);
+    if (pFormatCtx) avformat_close_input(&pFormatCtx);
     
-    // Free AVIO context
-    /*if (pAVIOCtx != NULL) {
-        if (pAVIOCtx->buffer != NULL) av_freep(&pAVIOCtx->buffer);
-        av_freep(&pAVIOCtx);
-    }*/
-    
-    if (filter_graph != NULL) avfilter_graph_free(&filter_graph);
+    if (filter_graph) avfilter_graph_free(&filter_graph);
     
     return rc;
 }
