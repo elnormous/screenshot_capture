@@ -255,8 +255,8 @@ get_thumb(const char* filename, const char* out_name)
     size_t           uncompressed_size;
     unsigned char   *bufferAVIO = NULL;
     //AVIOContext     *pAVIOCtx = NULL;
-    AVFilterContext *buffersink_ctx;
-    AVFilterContext *buffersrc_ctx;
+    //AVFilterContext *buffersink_ctx;
+    //AVFilterContext *buffersrc_ctx;
     AVFilterGraph   *filter_graph = NULL;
     int              need_flush = 0;
     char             value[10];
@@ -266,6 +266,7 @@ get_thumb(const char* filename, const char* out_name)
     AVCodec         *pOCodec = NULL;
     AVPacket        *packet = NULL;
     AVFrame         *pFrameRGB = NULL;
+    struct SwsContext *scalerCtx = NULL;
     
     rc = ERROR;
     
@@ -383,8 +384,6 @@ get_thumb(const char* filename, const char* out_name)
     
     log_str("Pixel format: %d, %d", pCodecCtx->pix_fmt, AV_PIX_FMT_YUV420P);
     log_str("Colorspace: %d", pFrame->colorspace);
-    
-    struct SwsContext *scalerCtx;
     
     scalerCtx = sws_getContext(pCodecCtx->width,
                                pCodecCtx->height,
