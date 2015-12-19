@@ -268,17 +268,21 @@ get_thumb(const char* filename, const char* out_name)
     AVFrame         *pFrameRGB = NULL;
     struct SwsContext *scalerCtx = NULL;
     AVDictionary    *input_options = NULL;
+    AVProbeData      pd = { filename, NULL, 0 };
+    AVInputFormat   *input_format = NULL;
     
     rc = ERROR;
     
     bufferAVIO = (unsigned char *)malloc(BUFFER_SIZE);
-    if (!bufferAVIO) {
+    if (!bufferAVIO)
+    {
         log_str("video thumb extractor module: Couldn't alloc AVIO buffer\n");
         goto exit;
     }
     
     pFormatCtx = avformat_alloc_context();
-    if (!pFormatCtx) {
+    if (!pFormatCtx)
+    {
         log_str("video thumb extractor module: Couldn't alloc AVIO buffer\n");
         goto exit;
     }
@@ -286,16 +290,26 @@ get_thumb(const char* filename, const char* out_name)
     //pFormatCtx->pb = pAVIOCtx;
     pFormatCtx->flags |= AVFMT_FLAG_NONBLOCK;
     
+    input_format = av_probe_input_format(&pd, 0);
+    
+    if (!input_format)
+    {
+        log_str("Failed to get input format\n");
+        goto exit;
+    }
+    
     av_dict_set(&input_options, "rtmp_live", "live", 0);
     
     // Open video file
-    if ((ret = avformat_open_input(&pFormatCtx, filename, NULL, &input_options)) != 0) {
+    if ((ret = avformat_open_input(&pFormatCtx, filename, input_format, &input_options)) != 0)
+    {
         log_str("video thumb extractor module: Couldn't open file %s, error: %d\n", filename, ret);
         goto exit;
     }
     
     // Retrieve stream information
-    if (avformat_find_stream_info(pFormatCtx, NULL) < 0) {
+    if (avformat_find_stream_info(pFormatCtx, NULL) < 0)
+    {
         log_str("video thumb extractor module: Couldn't find stream information\n");
         goto exit;
     }
