@@ -268,8 +268,7 @@ get_thumb(const char* filename, const char* out_name)
     AVFrame         *pFrameRGB = NULL;
     struct SwsContext *scalerCtx = NULL;
     AVDictionary    *input_options = NULL;
-    char proto[8], hostname[256], path[1024], auth[100];
-    int port;
+    char             proto[8];
     
     rc = ERROR;
     
@@ -289,9 +288,9 @@ get_thumb(const char* filename, const char* out_name)
     
     pFormatCtx->flags |= AVFMT_FLAG_NONBLOCK;
     
-    av_url_split(proto, sizeof(proto), auth, sizeof(auth),
-                 hostname, sizeof(hostname), &port,
-                 path, sizeof(path), filename);
+    av_url_split(proto, sizeof(proto), NULL, 0,
+                 NULL, 0, NULL,
+                 NULL, 0, filename);
     
     if (strcmp(proto, "rtmp") == 0)
     {
