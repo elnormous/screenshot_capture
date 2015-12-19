@@ -268,8 +268,8 @@ get_thumb(const char* filename, const char* out_name)
     AVFrame         *pFrameRGB = NULL;
     struct SwsContext *scalerCtx = NULL;
     AVDictionary    *input_options = NULL;
-    AVProbeData      pd = { filename, NULL, 0 };
-    AVInputFormat   *input_format = NULL;
+    char proto[8], hostname[256], path[1024], auth[100];
+    int port;
     
     rc = ERROR;
     
@@ -287,21 +287,19 @@ get_thumb(const char* filename, const char* out_name)
         goto exit;
     }
     
-    //pFormatCtx->pb = pAVIOCtx;
     pFormatCtx->flags |= AVFMT_FLAG_NONBLOCK;
     
-    input_format = av_probe_input_format(&pd, 0);
+    av_url_split(proto, sizeof(proto), auth, sizeof(auth),
+                 hostname, sizeof(hostname), &port,
+                 path, sizeof(path), filename);
     
-    if (!input_format)
+    if (strcmp(proto, "rtmp") == 0)
     {
-        log_str("Failed to get input format\n");
-        goto exit;
+        av_dict_set(&input_options, "rtmp_live", "live", 0);
     }
     
-    av_dict_set(&input_options, "rtmp_live", "live", 0);
-    
     // Open video file
-    if ((ret = avformat_open_input(&pFormatCtx, filename, input_format, &input_options)) != 0)
+    if ((ret = avformat_open_input(&pFormatCtx, filename, NULL, &input_options)) != 0)
     {
         log_str("video thumb extractor module: Couldn't open file %s, error: %d\n", filename, ret);
         goto exit;
