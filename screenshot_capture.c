@@ -36,24 +36,6 @@ void log_str(const char * format, ... )
     va_end(vl);
 }
 
-int filter_frame(AVFilterContext *buffersrc_ctx, AVFilterContext *buffersink_ctx, AVFrame *inFrame, AVFrame *outFrame)
-{
-    int rc = OK;
-    
-    /*if (av_buffersrc_add_frame_flags(buffersrc_ctx, inFrame, AV_BUFFERSRC_FLAG_KEEP_REF) < 0) {
-        log_str("video thumb extractor module: Error while feeding the filtergraph");
-        return ERROR;
-    }*/
-    
-    if ((rc = av_buffersink_get_frame(buffersink_ctx, outFrame)) < 0) {
-        if (rc != AVERROR(EAGAIN)) {
-            log_str("video thumb extractor module: Error while getting the filtergraph result frame");
-        }
-    }
-    
-    return rc;
-}
-
 
 int get_frame(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, AVFrame *pFrame, int videoStream, int64_t second)
 {
