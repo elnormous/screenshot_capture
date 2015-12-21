@@ -345,7 +345,6 @@ void init()
 {
     // Register all formats and codecs
     av_register_all();
-    avfilter_register_all();
     av_log_set_level(AV_LOG_ERROR);
 }
 
