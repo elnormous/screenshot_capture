@@ -3,7 +3,7 @@ LD=gcc
 CFLAGS=-I.
 OBJ=screenshot_capture.o 
 
-LIBS=$(shell pkg-config --libs libavformat libavcodec libavutil libswscale libavresample)
+LIBS=$(shell pkg-config --libs libavformat libavcodec libswscale)
 
 %.o: %.c
 	$(CC) -c $< $(CFLAGS) -o $@
