@@ -10,7 +10,6 @@
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 #include <libavformat/avio.h>
-#include <libavfilter/avfilter.h>
 #include <libavfilter/buffersink.h>
 #include <libavfilter/buffersrc.h>
 #include <libavcodec/avcodec.h>
@@ -97,155 +96,7 @@ int display_width(AVCodecContext *pCodecCtx)
     return pCodecCtx->height * display_aspect_ratio(pCodecCtx);
 }
 
-int setup_filters(AVFormatContext *pFormatCtx, AVCodecContext *pCodecCtx, int videoStream, AVFilterGraph **fg, AVFilterContext **buffersrc_ctx, AVFilterContext **buffersink_ctx)
-{
-    AVFilterGraph   *filter_graph;
-    
-    AVFilterContext *transpose_ctx;
-    AVFilterContext *transpose_cw_ctx;
-    AVFilterContext *scale_ctx;
-    AVFilterContext *crop_ctx;
-    AVFilterContext *tile_ctx;
-    AVFilterContext *format_ctx;
-    
-    int              rc = 0;
-    char             args[512];
-    
-    unsigned int     needs_crop = 0;
-    float            new_aspect_ratio = 0.0, scale_sws = 0.0, scale_w = 0.0, scale_h = 0.0;
-    int              scale_width = 0, scale_height = 0;
-    
-    unsigned int     rotate90 = 0, rotate180 = 0, rotate270 = 0;
-    
-    AVDictionaryEntry *rotate = av_dict_get(pFormatCtx->streams[videoStream]->metadata, "rotate", NULL, 0);
-    if (rotate) {
-        rotate90 = strcasecmp(rotate->value, "90") == 0;
-        rotate180 = strcasecmp(rotate->value, "180") == 0;
-        rotate270 = strcasecmp(rotate->value, "270") == 0;
-    }
-    
-    float aspect_ratio = display_aspect_ratio(pCodecCtx);
-    int width = display_width(pCodecCtx);
-    int height = pCodecCtx->height;
-    
-    if (rotate90 || rotate270) {
-        height = width;
-        width = pCodecCtx->height;
-        aspect_ratio = 1.0 / aspect_ratio;
-    }
-    
-    new_aspect_ratio = (float) width / height;
-    
-    scale_width = width;
-    scale_height = height;
-    
-    if (aspect_ratio != new_aspect_ratio) {
-        scale_w = (float) width / width;
-        scale_h = (float) height / height;
-        scale_sws = (scale_w > scale_h) ? scale_w : scale_h;
-        
-        scale_width = width * scale_sws + 0.5;
-        scale_height = height * scale_sws + 0.5;
-        
-        needs_crop = 1;
-    }
-    
-    // create filters to scale and crop the selected frame
-    if ((*fg = filter_graph = avfilter_graph_alloc()) == NULL) {
-        log_str("video thumb extractor module: unable to create filter graph: out of memory");
-        return ERROR;
-    }
-    
-    AVRational time_base = pFormatCtx->streams[videoStream]->time_base;
-    snprintf(args, sizeof(args),
-             "video_size=%dx%d:pix_fmt=%d:time_base=%d/%d:pixel_aspect=%d/%d",
-             pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt,
-             time_base.num, time_base.den,
-             pCodecCtx->sample_aspect_ratio.num, pCodecCtx->sample_aspect_ratio.den);
-    
-    if (avfilter_graph_create_filter(buffersrc_ctx, avfilter_get_by_name("buffer"), NULL, args, NULL, filter_graph) < 0) {
-        log_str("video thumb extractor module: Cannot create buffer source");
-        return ERROR;
-    }
-    
-    if ((rotate90 || rotate180 || rotate270) && (avfilter_graph_create_filter(&transpose_ctx, avfilter_get_by_name("transpose"), NULL, rotate270 ? "2" : "1", NULL, filter_graph) < 0)) {
-        log_str("video thumb extractor module: error initializing transpose filter");
-        return ERROR;
-    }
-    
-    if (rotate180 && (avfilter_graph_create_filter(&transpose_cw_ctx, avfilter_get_by_name("transpose"), NULL, "1", NULL, filter_graph) < 0)) {
-        log_str("video thumb extractor module: error initializing transpose filter");
-        return ERROR;
-    }
-    
-    snprintf(args, sizeof(args), "%d:%d:flags=bicubic", scale_width, scale_height);
-    if (avfilter_graph_create_filter(&scale_ctx, avfilter_get_by_name("scale"), NULL, args, NULL, filter_graph) < 0) {
-        log_str("video thumb extractor module: error initializing scale filter");
-        return ERROR;
-    }
-    
-    if (needs_crop) {
-        snprintf(args, sizeof(args), "%d:%d", (int) width, (int) height);
-        if (avfilter_graph_create_filter(&crop_ctx, avfilter_get_by_name("crop"), NULL, args, NULL, filter_graph) < 0) {
-            log_str("video thumb extractor module: error initializing crop filter");
-            return ERROR;
-        }
-    }
-    
-    if (avfilter_graph_create_filter(&tile_ctx, avfilter_get_by_name("tile"), NULL, args, NULL, filter_graph) < 0) {
-        log_str("video thumb extractor module: error initializing tile filter");
-        return ERROR;
-    }
-    
-    if (avfilter_graph_create_filter(&format_ctx, avfilter_get_by_name("format"), NULL, "pix_fmts=rgb24", NULL, filter_graph) < 0) {
-        log_str("video thumb extractor module: error initializing format filter");
-        return ERROR;
-    }
-    
-    /* buffer video sink: to terminate the filter chain. */
-    if (avfilter_graph_create_filter(buffersink_ctx, avfilter_get_by_name("buffersink"), NULL, NULL, NULL, filter_graph) < 0) {
-        log_str("video thumb extractor module: Cannot create buffer sink");
-        return ERROR;
-    }
-    
-    // connect inputs and outputs
-    if (rotate) {
-        rc = avfilter_link(*buffersrc_ctx, 0, transpose_ctx, 0);
-        if (rotate180) {
-            if (rc >= 0) rc = avfilter_link(transpose_ctx, 0, transpose_cw_ctx, 0);
-            if (rc >= 0) rc = avfilter_link(transpose_cw_ctx, 0, scale_ctx, 0);
-        } else {
-            if (rc >= 0) rc = avfilter_link(transpose_ctx, 0, scale_ctx, 0);
-        }
-    } else {
-        rc = avfilter_link(*buffersrc_ctx, 0, scale_ctx, 0);
-    }
-    
-    if (needs_crop) {
-        if (rc >= 0) rc = avfilter_link(scale_ctx, 0, crop_ctx, 0);
-        if (rc >= 0) rc = avfilter_link(crop_ctx, 0, tile_ctx, 0);
-    } else {
-        if (rc >= 0) rc = avfilter_link(scale_ctx, 0, tile_ctx, 0);
-    }
-    
-    if (rc >= 0) rc = avfilter_link(tile_ctx, 0, format_ctx, 0);
-    if (rc >= 0) rc = avfilter_link(format_ctx, 0, *buffersink_ctx, 0);
-    
-    if (rc < 0) {
-        log_str("video thumb extractor module: error connecting filters");
-        return ERROR;
-    }
-    
-    if (avfilter_graph_config(filter_graph, NULL) < 0) {
-        log_str("video thumb extractor module: error configuring the filter graph");
-        return ERROR;
-    }
-    
-    return OK;
-}
-
-static int
-get_thumb(const char* filename, const char* out_name)
+static int get_thumb(const char* filename, const char* out_name)
 {
     int              rc, ret, videoStream;
     AVFormatContext *pFormatCtx = NULL;
@@ -254,10 +105,6 @@ get_thumb(const char* filename, const char* out_name)
     AVFrame         *pFrame = NULL;
     size_t           uncompressed_size;
     unsigned char   *bufferAVIO = NULL;
-    //AVIOContext     *pAVIOCtx = NULL;
-    //AVFilterContext *buffersink_ctx;
-    //AVFilterContext *buffersrc_ctx;
-    AVFilterGraph   *filter_graph = NULL;
     int              need_flush = 0;
     char             value[10];
     int              threads = 2;
@@ -490,8 +337,6 @@ exit:
     
     // Close the video file
     if (pFormatCtx) avformat_close_input(&pFormatCtx);
-    
-    if (filter_graph) avfilter_graph_free(&filter_graph);
     
     return rc;
 }
