@@ -48,10 +48,10 @@ int get_frame(AVFormatContext *formatCtx, AVCodecContext *codecCtx, AVFrame *fra
     return rc;
 }
 
-float display_aspect_ratio(AVCodecContext *pCodecCtx)
+float display_aspect_ratio(AVCodecContext *codecCtx)
 {
-    double aspect_ratio = av_q2d(pCodecCtx->sample_aspect_ratio);
-    return ((float) pCodecCtx->width / pCodecCtx->height) * (aspect_ratio ? aspect_ratio : 1);
+    double aspectRatio = av_q2d(codecCtx->sample_aspect_ratio);
+    return ((float) codecCtx->width / codecCtx->height) * (aspectRatio ? aspectRatio : 1);
 }
 
 
