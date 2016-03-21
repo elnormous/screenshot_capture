@@ -15,7 +15,7 @@
 
 const size_t BUFFER_SIZE = 1024 * 8;
 
-int get_frame(AVFormatContext *formatCtx, AVCodecContext *codecCtx, AVFrame *frame, int videoStream)
+static int get_frame(AVFormatContext *formatCtx, AVCodecContext *codecCtx, AVFrame *frame, int videoStream)
 {
     AVPacket packet;
     int      frameFinished = 0;
