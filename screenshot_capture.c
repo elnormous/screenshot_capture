@@ -48,7 +48,7 @@ static int get_frame(AVFormatContext *formatCtx, AVCodecContext *codecCtx, AVFra
     return rc;
 }
 
-static int get_thumb(const char* filename, const char* out_name)
+static int get_thumb(const char* filename, const char* outName)
 {
     int              rc, ret, videoStream;
     AVFormatContext *formatCtx = NULL;
@@ -267,7 +267,7 @@ static int get_thumb(const char* filename, const char* out_name)
         goto exit;
     }
     
-    FILE* f = fopen(out_name, "wb");
+    FILE* f = fopen(outName, "wb");
     fwrite(packet->data, packet->size, 1, f);
     fclose(f);
     
