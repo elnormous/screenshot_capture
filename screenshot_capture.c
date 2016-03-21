@@ -15,16 +15,16 @@
 
 const size_t BUFFER_SIZE = 1024 * 8;
 
-int get_frame(AVFormatContext *formatCtx, AVCodecContext *codecCtx, AVFrame *frame, int videoStream, int64_t second)
+int get_frame(AVFormatContext *formatCtx, AVCodecContext *codecCtx, AVFrame *frame, int videoStream)
 {
     AVPacket packet;
     int      frameFinished = 0;
     int      rc;
     
-    if ((formatCtx->duration > 0) && ((((float_t) formatCtx->duration / AV_TIME_BASE) - second)) < 0.1)
+    /*if ((formatCtx->duration > 0) && ((((float_t) formatCtx->duration / AV_TIME_BASE) - second)) < 0.1)
     {
         return ERROR;
-    }
+    }*/
     
     rc = ERROR;
     // Find the nearest frame
@@ -57,10 +57,8 @@ static int get_thumb(const char* filename, const char* out_name)
     AVFrame         *frame = NULL;
     size_t           uncompressedSize;
     unsigned char   *bufferAVIO = NULL;
-    int              need_flush = 0;
     char             value[10];
     int              threads = 2;
-    int              second = 0;
     AVCodecContext  *outCodecCtx = NULL;
     AVCodec         *outCodec = NULL;
     AVPacket        *packet = NULL;
@@ -154,20 +152,20 @@ static int get_thumb(const char* filename, const char* out_name)
         goto exit;
     }
     
-    while ((rc = get_frame(formatCtx, codecCtx, frame, videoStream, second)) == 0)
+    while ((rc = get_frame(formatCtx, codecCtx, frame, videoStream)) == 0)
     {
         
-        if (frame->pict_type == 0) { // AV_PICTURE_TYPE_NONE
-            need_flush = 1;
+        /*if (frame->pict_type == 0) { // AV_PICTURE_TYPE_NONE
+            needFlush = 1;
             break;
         }
         
-        /*if (filter_frame(buffersrcCtx, buffersinkCtx, frame, frame) == AVERROR(EAGAIN)) {
-            need_flush = 1;
+        if (filter_frame(buffersrcCtx, buffersinkCtx, frame, frame) == AVERROR(EAGAIN)) {
+            needFlush = 1;
             continue;
-        }*/
+        }
         
-        need_flush = 0;
+        needFlush = 0;*/
         break;
     }
     
@@ -176,7 +174,7 @@ static int get_thumb(const char* filename, const char* out_name)
         goto exit;
     }
     
-    /*if (need_flush)
+    /*if (needFlush)
     {
         if (filter_frame(buffersrc_ctx, buffersink_ctx, NULL, pFrame) < 0)
         {
