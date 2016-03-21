@@ -306,13 +306,6 @@ exit:
     return rc;
 }
 
-void init()
-{
-    // Register all formats and codecs
-    av_register_all();
-    av_log_set_level(AV_LOG_ERROR);
-}
-
 int main(int argc, const char * argv[])
 {
     if (argc < 3)
@@ -321,9 +314,11 @@ int main(int argc, const char * argv[])
         return 1;
     }
     
-    init();
+    // Register all formats and codecs
+    av_register_all();
+    av_log_set_level(AV_LOG_ERROR);
     
-    fprintf(stderr, "Path: %s\n", argv[1]);
+    fprintf(stdout, "Path: %s\n", argv[1]);
     
     if (get_thumb(argv[1], argv[2]) != OK)
     {
