@@ -73,14 +73,14 @@ static int get_thumb(const char* filename, const char* out_name)
     bufferAVIO = (unsigned char *)malloc(BUFFER_SIZE);
     if (!bufferAVIO)
     {
-        fprintf(stderr, "video thumb extractor module: Couldn't alloc AVIO buffer\n");
+        fprintf(stderr, "Couldn't alloc AVIO buffer\n");
         goto exit;
     }
     
     formatCtx = avformat_alloc_context();
     if (!formatCtx)
     {
-        fprintf(stderr, "video thumb extractor module: Couldn't alloc avformat context\n");
+        fprintf(stderr, "Couldn't alloc avformat context\n");
         goto exit;
     }
     
@@ -98,20 +98,20 @@ static int get_thumb(const char* filename, const char* out_name)
     // Open video file
     if ((ret = avformat_open_input(&formatCtx, filename, NULL, &inputOptions)) != 0)
     {
-        fprintf(stderr, "video thumb extractor module: Couldn't open file %s, error: %d\n", filename, ret);
+        fprintf(stderr, "Couldn't open file %s, error: %d\n", filename, ret);
         goto exit;
     }
     
     // Retrieve stream information
     if (avformat_find_stream_info(formatCtx, NULL) < 0)
     {
-        fprintf(stderr, "video thumb extractor module: Couldn't find stream information\n");
+        fprintf(stderr, "Couldn't find stream information\n");
         goto exit;
     }
     
     if ((formatCtx->duration > 0) && ((((float_t) formatCtx->duration / AV_TIME_BASE))) < 0.1)
     {
-        fprintf(stderr, "video thumb extractor module: seconds greater than duration\n");
+        fprintf(stderr, "seconds greater than duration\n");
         rc = ERROR;
         goto exit;
     }
@@ -120,7 +120,7 @@ static int get_thumb(const char* filename, const char* out_name)
     videoStream = av_find_best_stream(formatCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
     if (videoStream == -1)
     {
-        fprintf(stderr, "video thumb extractor module: Didn't find a video stream\n");
+        fprintf(stderr, "Didn't find a video stream\n");
         goto exit;
     }
     
@@ -133,7 +133,7 @@ static int get_thumb(const char* filename, const char* out_name)
     // Open codec
     if ((avcodec_open2(codecCtx, codec, &dict)) < 0)
     {
-        fprintf(stderr, "video thumb extractor module: Could not open codec\n");
+        fprintf(stderr, "Could not open codec\n");
         goto exit;
     }
     
@@ -148,7 +148,7 @@ static int get_thumb(const char* filename, const char* out_name)
     frame = av_frame_alloc();
     
     if (frame == NULL) {
-        fprintf(stderr, "video thumb extractor module: Could not alloc frame memory\n");
+        fprintf(stderr, "Could not alloc frame memory\n");
         goto exit;
     }
     
