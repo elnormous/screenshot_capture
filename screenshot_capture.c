@@ -48,18 +48,6 @@ int get_frame(AVFormatContext *formatCtx, AVCodecContext *codecCtx, AVFrame *fra
     return rc;
 }
 
-float display_aspect_ratio(AVCodecContext *codecCtx)
-{
-    double aspectRatio = av_q2d(codecCtx->sample_aspect_ratio);
-    return ((float) codecCtx->width / codecCtx->height) * (aspectRatio ? aspectRatio : 1);
-}
-
-
-int display_width(AVCodecContext *pCodecCtx)
-{
-    return pCodecCtx->height * display_aspect_ratio(pCodecCtx);
-}
-
 static int get_thumb(const char* filename, const char* out_name)
 {
     int              rc, ret, videoStream;
